@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Net.Http;
-using System.Threading.Tasks;
 using System.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
@@ -16,24 +16,24 @@ namespace MixMedia.MCP.LexOffice.Tools;
 public static class GetInvoicesTool
 {
     [McpServerTool, Description("Gets a list of Lexoffice invoices. Optional: pass a status filter (e.g. 'draft', 'open', 'paid', 'canceled').")]
-    public static async Task<string> GetInvoicesAsync(IServiceProvider serviceProvider, [Description("Invoice status filter")] string? status = null)
+    public static async Task<string> GetInvoicesAsync(IServiceProvider serviceProvider, [Description("Invoice status filter")] string? status = null, CancellationToken cancellationToken = default)
     {
         var httpFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
         var client = httpFactory.CreateClient("LexOfficeClient");
         var url = "invoices";
         if (!string.IsNullOrWhiteSpace(status))
             url += $"?status={Uri.EscapeDataString(status)}";
-        var response = await client.GetAsync(url);
+        var response = await client.GetAsync(url, cancellationToken);
         switch ((int)response.StatusCode)
         {
             case 200:
             case 201:
             case 202:
-                return await response.Content.ReadAsStringAsync();
+                return await response.Content.ReadAsStringAsync(cancellationToken);
             case 204:
                 return "No Content: The resource was successfully deleted or no content to return.";
             case 400:
-                throw new InvalidOperationException($"Bad Request: {await response.Content.ReadAsStringAsync()}");
+                throw new InvalidOperationException($"Bad Request: {await response.Content.ReadAsStringAsync(cancellationToken)}");
             case 401:
                 throw new UnauthorizedAccessException("Unauthorized: Action requires user authentication.");
             case 402:
@@ -45,7 +45,7 @@ public static class GetInvoicesTool
             case 405:
                 throw new InvalidOperationException("Not Allowed: Method not allowed on resource.");
             case 406:
-                throw new InvalidOperationException($"Not Acceptable: {await response.Content.ReadAsStringAsync()}");
+                throw new InvalidOperationException($"Not Acceptable: {await response.Content.ReadAsStringAsync(cancellationToken)}");
             case 409:
                 throw new InvalidOperationException("Conflict: Request not allowed due to the current state of the resource.");
             case 415:

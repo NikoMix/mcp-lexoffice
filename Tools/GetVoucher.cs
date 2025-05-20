@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
@@ -13,21 +14,22 @@ public static class GetVoucherTool
     [McpServerTool, Description("Retrieves a Lexoffice voucher by its ID. Returns the raw JSON response.")]
     public static async Task<string> GetVoucherAsync(
         IServiceProvider serviceProvider,
-        [Description("The voucher ID")] Guid voucherId)
+        [Description("The voucher ID")] Guid voucherId,
+        CancellationToken cancellationToken = default)
     {
         var httpFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
         var client = httpFactory.CreateClient("LexOfficeClient");
-        var response = await client.GetAsync($"vouchers/{voucherId}");
+        var response = await client.GetAsync($"vouchers/{voucherId}", cancellationToken);
         switch ((int)response.StatusCode)
         {
             case 200:
             case 201:
             case 202:
-                return await response.Content.ReadAsStringAsync();
+                return await response.Content.ReadAsStringAsync(cancellationToken);
             case 204:
                 return "No Content: Voucher not found.";
             case 400:
-                throw new InvalidOperationException($"Bad Request: {await response.Content.ReadAsStringAsync()}");
+                throw new InvalidOperationException($"Bad Request: {await response.Content.ReadAsStringAsync(cancellationToken)}");
             case 401:
                 throw new UnauthorizedAccessException("Unauthorized: Action requires user authentication.");
             case 402:
@@ -39,7 +41,7 @@ public static class GetVoucherTool
             case 405:
                 throw new InvalidOperationException("Not Allowed: Method not allowed on resource.");
             case 406:
-                throw new InvalidOperationException($"Not Acceptable: {await response.Content.ReadAsStringAsync()}");
+                throw new InvalidOperationException($"Not Acceptable: {await response.Content.ReadAsStringAsync(cancellationToken)}");
             case 409:
                 throw new InvalidOperationException("Conflict: Request not allowed due to the current state of the resource.");
             case 415:
