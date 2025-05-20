@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "MixMedia.MCP.LexOffice": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
