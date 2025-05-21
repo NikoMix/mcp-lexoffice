@@ -15,6 +15,8 @@ using Microsoft.AspNetCore.Http;
 using ModelContextProtocol.Protocol;
 using System.Threading;
 using System.Net.Http.Headers;
+using MixMedia.MCP.LexOffice.Services; // Assuming LexOfficeService is in this namespace
+using System;
 
 namespace MixMedia.MCP.LexOffice;
 internal class Program
@@ -57,14 +59,10 @@ internal class Program
                     });
                 });
             })
-            .ConfigureHostConfiguration(config =>
-            {
-                config.AddEnvironmentVariables("LEX_");
-                config.AddUserSecrets<Program>();
-            })
             .ConfigureServices((context, services) =>
             {
                 services.AddMcpServer()
+                    .WithStdioServerTransport() // For local development, replace with .WithHttpTransport() for production
                     .WithHttpTransport(options =>
                     {
                         options.Stateless = true;
@@ -89,6 +87,11 @@ internal class Program
                 .AddPolicyHandler(rateLimitPolicy)
                 .AddPolicyHandler(retryPolicy);
 
+                services.AddLexOfficeService(options =>
+                {
+                    options.ApiKey = context.Configuration["LexOffice:ApiKey"]; // Assuming API key is in appsettings.json
+                });
+
             }).Build().RunAsync();
 
     // DelegatingHandler to copy X-Api-Key to Authorization header
@@ -109,4 +112,52 @@ internal class Program
             return base.SendAsync(request, cancellationToken);
         }
     }
+}
+
+public static class LexOfficeServiceExtensions
+{
+    public static IServiceCollection AddLexOfficeService(this IServiceCollection services, Action<LexOfficeServiceOptions> configureOptions)
+    {
+        var options = new LexOfficeServiceOptions();
+        configureOptions(options);
+
+        if (string.IsNullOrWhiteSpace(options.ApiKey))
+        {
+            throw new ArgumentNullException(nameof(options.ApiKey), "LexOffice API Key must be provided.");
+        }
+
+        // Register HttpClient for LexOfficeService using IHttpClientFactory
+        // This is the recommended way to manage HttpClient instances.
+        services.AddHttpClient<LexOfficeService>(client =>
+        {
+            // Base address and other default request headers (like Accept, Authorization) 
+            // are configured within the LexOfficeService constructor itself.
+            // client.BaseAddress = new Uri("https://api.lexoffice.io/v1/"); // This could be set here too.
+        })
+        // Optionally configure the primary message handler (e.g., for proxy, decompression)
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
+        });
+
+        // Register LexOfficeService itself. It will be activated with the configured HttpClient.
+        // The API key is passed to its constructor.
+        // We use a factory function to correctly instantiate LexOfficeService with its dependencies.
+        services.AddScoped(provider =>
+        {
+            var httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
+            // Create a named HttpClient instance. The name should match what AddHttpClient used if it was named.
+            // Or, if AddHttpClient<LexOfficeService> was used, this resolves the specifically configured client for LexOfficeService.
+            var httpClient = httpClientFactory.CreateClient(typeof(LexOfficeService).Name); 
+            
+            return new LexOfficeService(httpClient, options.ApiKey);
+        });
+
+        return services;
+    }
+}
+
+public class LexOfficeServiceOptions
+{
+    public string? ApiKey { get; set; }
 }

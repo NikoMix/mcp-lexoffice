@@ -1,28 +1,57 @@
 using System;
 using System.ComponentModel;
-using System.IO;
 using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
+using MixMedia.MCP.LexOffice.Models;
 
 namespace MixMedia.MCP.LexOffice.Tools;
 
-[McpServerToolType]
-public static class DownloadFileTool
+/// <summary>
+/// Request model for creating a Lexoffice article.
+/// </summary>
+public class CreateArticleRequest
 {
-    [McpServerTool, Description("Downloads a file from Lexoffice by file/document ID. Returns the file as a byte array.")]
-    public static async Task<byte[]> DownloadFileAsync(IServiceProvider serviceProvider, [Description("The file/document ID")] Guid fileId)
+    /// <summary>Title of the article.</summary>
+    public string Title { get; set; } = string.Empty;
+    /// <summary>Type of the article. Possible values: PRODUCT, SERVICE.</summary>
+    public string Type { get; set; } = string.Empty;
+    /// <summary>Unit name of the article.</summary>
+    public string UnitName { get; set; } = string.Empty;
+    /// <summary>Article number (optional).</summary>
+    public string? ArticleNumber { get; set; }
+    /// <summary>Price details of the article.</summary>
+    public ArticlePrice Price { get; set; } = new();
+}
+
+[McpServerToolType]
+public static class CreateArticleTool
+{
+    [McpServerTool, Description("Creates a new Lexoffice article. Pass a CreateArticleRequest object as input.")]
+    public static async Task<string> CreateArticleAsync(
+        IServiceProvider serviceProvider,
+        CreateArticleRequest request,
+        CancellationToken cancellationToken = default)
     {
         var httpFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
         var client = httpFactory.CreateClient("LexOfficeClient");
-        var response = await client.GetAsync($"files/{fileId}");
+        var json = JsonSerializer.Serialize(request, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var response = await client.PostAsync("articles", content, cancellationToken);
         switch ((int)response.StatusCode)
         {
             case 200:
-                return await response.Content.ReadAsByteArrayAsync();
+            case 201:
+            case 202:
+                return await response.Content.ReadAsStringAsync(cancellationToken);
+            case 204:
+                return "No Content: The resource was successfully created or no content to return.";
             case 400:
-                throw new InvalidOperationException($"Bad Request: {await response.Content.ReadAsStringAsync()}");
+                throw new InvalidOperationException($"Bad Request: {await response.Content.ReadAsStringAsync(cancellationToken)}");
             case 401:
                 throw new UnauthorizedAccessException("Unauthorized: Action requires user authentication.");
             case 402:
@@ -30,11 +59,11 @@ public static class DownloadFileTool
             case 403:
                 throw new UnauthorizedAccessException("Forbidden: Insufficient scope or access rights in lexoffice.");
             case 404:
-                throw new InvalidOperationException("Not Found: Requested file does not exist (anymore).");
+                throw new InvalidOperationException("Not Found: Requested resource does not exist (anymore).");
             case 405:
                 throw new InvalidOperationException("Not Allowed: Method not allowed on resource.");
             case 406:
-                throw new InvalidOperationException($"Not Acceptable: {await response.Content.ReadAsStringAsync()}");
+                throw new InvalidOperationException($"Not Acceptable: {await response.Content.ReadAsStringAsync(cancellationToken)}");
             case 409:
                 throw new InvalidOperationException("Conflict: Request not allowed due to the current state of the resource.");
             case 415:
