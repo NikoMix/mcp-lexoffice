@@ -1,4 +1,5 @@
-﻿using MixMedia.MCP.LexOffice.Models;
+﻿
+using MixMedia.MCP.LexOffice.Models;
 using System;
 using System.Collections.Generic;
 using System.IO; // For Stream
@@ -7,6 +8,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json; // For ReadFromJsonAsync, PostAsJsonAsync
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Web; // For HttpUtility
 
@@ -43,8 +45,6 @@ public class LexOfficeService : IDisposable
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
-
-    // --- Contacts ---    
 
     /// <summary>
     /// Creates a new contact in Lexoffice.
@@ -86,7 +86,6 @@ public class LexOfficeService : IDisposable
             throw new ArgumentException("Country code is mandatory for all billing addresses.", "contactPayload.Addresses.Billing.CountryCode");
         if (contactPayload.Addresses?.Shipping?.Any(a => string.IsNullOrWhiteSpace(a.CountryCode)) == true) 
             throw new ArgumentException("Country code is mandatory for all shipping addresses.", "contactPayload.Addresses.Shipping.CountryCode");
-        // Add checks for API limits (e.g., max 1 billing address, max 1 of each email type) if not handled by model constraints
 
         var response = await _httpClient.PostAsJsonAsync($"{BaseApiUrl}/contacts", contactPayload, _jsonSerializerOptions);
 
@@ -328,12 +327,12 @@ public class LexOfficeService : IDisposable
         if (invoiceId == Guid.Empty) throw new ArgumentException("Invoice ID cannot be empty.", nameof(invoiceId));
         if (paymentRequest == null) throw new ArgumentNullException(nameof(paymentRequest));
 
-        var response = await _httpClient.PostAsJsonAsync($"{BaseApiUrl}/invoices/{invoiceId}/payment\", paymentRequest, _jsonSerializerOptions);
+        var response = await _httpClient.PostAsJsonAsync($"{BaseApiUrl}/invoices/{invoiceId}/payment", paymentRequest, _jsonSerializerOptions);
 
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            throw new HttpRequestException($"Error creating payment for invoice {invoiceId}. Status: {response.StatusCode}, Reason: {response.ReasonPhrase}, Details: {errorContent}\", null, response.StatusCode);
+            throw new HttpRequestException($"Error creating payment for invoice {invoiceId}. Status: {response.StatusCode}, Reason: {response.ReasonPhrase}, Details: {errorContent}", null, response.StatusCode);
         }
         // API documentation states "A successful call returns a 200 OK HTTP status code."
         return response.StatusCode == System.Net.HttpStatusCode.OK; 
@@ -410,7 +409,6 @@ public class LexOfficeService : IDisposable
         return await response.Content.ReadFromJsonAsync<QuotationCreationResponse>(_jsonSerializerOptions);
     }
 
-    // --- Payment Conditions ---
     /// <summary>
     /// Retrieves all available payment conditions from Lexoffice.
     /// </summary>
@@ -431,8 +429,6 @@ public class LexOfficeService : IDisposable
         return paginatedResponse?.Content;
     }
 
-
-    // --- Print Layouts ---
     /// <summary>
     /// Retrieves all available print layouts from Lexoffice.
     /// </summary>
@@ -452,8 +448,6 @@ public class LexOfficeService : IDisposable
         return paginatedResponse?.Content;
     }
 
-
-    // --- Files --- 
     /// <summary>
     /// Downloads a file (e.g., an invoice PDF) from Lexoffice.
     /// The ID of the file can typically be retrieved from the respective resource (e.g., an invoice has a 'documentFileId' property).
@@ -494,6 +488,8 @@ public class LexOfficeService : IDisposable
         _httpClient?.Dispose();
         GC.SuppressFinalize(this);
     }
+// Ensure the following using directive is present at the top of the file:
+// using System.Text.Json.Serialization;
 }
 
 // --- Helper DTOs for API responses (These should ideally be in the Models folder or a dedicated DTOs folder within Models) ---
@@ -584,46 +580,4 @@ public class SortOrder
 
     [JsonPropertyName("ascending")]
     public bool Ascending { get; set; }
-}
-
-// Enums for GetContactsAsync parameters (These should ideally be in the Models folder or a shared location if not already there)
-// Ensure these are defined or accessible. If they are in Models, this re-declaration is not needed.
-// public enum ContactSortDirection { ASC, DESC }
-// public enum ContactSortField { name, customerNumber, vendorNumber, email, createdDate, updatedDate }
-
-// --- Generic Pageable Response (if not already defined elsewhere, e.g. Models/PageableResponse.cs) ---
-// It's better to have this in a separate file in the Models folder.
-// If PageableResponse<T> is already defined in Models, this can be removed
-/*
-public class PageableResponse<T> 
-{
-    [JsonPropertyName("content")]
-    public List<T> Content { get; set; } = new List<T>();
-
-    [JsonPropertyName("first")]
-    public bool First { get; set; }
-
-    [JsonPropertyName("last")]
-    public bool Last { get; set; }
-
-    [JsonPropertyName("totalPages")]
-    public int TotalPages { get; set; }
-
-    [JsonPropertyName("totalElements")]
-    public int TotalElements { get; set; }
-
-    [JsonPropertyName("numberOfElements")]
-    public int NumberOfElements { get; set; }
-
-    [JsonPropertyName("size")]
-    public int Size { get; set; }
-
-    [JsonPropertyName("number")]
-    public int Number { get; set; } // Current page number (0-based)
-
-    [JsonPropertyName("sort")]
-    public List<SortOrder>? Sort { get; set; } 
-}
-*/
-// Ensure SortOrder is also defined, likely in Models/SortOrder.cs
 }

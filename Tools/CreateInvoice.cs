@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using MixMedia.MCP.LexOffice.Models;
 using ModelContextProtocol.Server;
 
 namespace MixMedia.MCP.LexOffice.Tools;
@@ -24,17 +25,6 @@ public class CreateInvoiceRequest
     public string Introduction { get; set; } = string.Empty;
     public string Remark { get; set; } = string.Empty;
     // Optional: public InvoiceXRechnung? XRechnung { get; set; }
-}
-
-public class InvoiceAddress
-{
-    public string? Name { get; set; }
-    public string? Supplement { get; set; }
-    public string? Street { get; set; }
-    public string? City { get; set; }
-    public string? Zip { get; set; }
-    public string? CountryCode { get; set; }
-    public Guid? ContactId { get; set; }
 }
 
 public class InvoiceLineItem

@@ -109,6 +109,11 @@ internal class Program
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
             }
+            if(Environment.GetEnvironmentVariable("LEX_API_KEY") != null)
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Environment.GetEnvironmentVariable("LEX_API_KEY"));
+            }
+
             return base.SendAsync(request, cancellationToken);
         }
     }
@@ -120,11 +125,6 @@ public static class LexOfficeServiceExtensions
     {
         var options = new LexOfficeServiceOptions();
         configureOptions(options);
-
-        if (string.IsNullOrWhiteSpace(options.ApiKey))
-        {
-            throw new ArgumentNullException(nameof(options.ApiKey), "LexOffice API Key must be provided.");
-        }
 
         // Register HttpClient for LexOfficeService using IHttpClientFactory
         // This is the recommended way to manage HttpClient instances.
